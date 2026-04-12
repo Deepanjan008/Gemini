@@ -1,4 +1,4 @@
-name: Build Termux Python Wheels (Boss Mode)
+name: Build Termux Wheels (Turbo Edition)
 
 on:
   workflow_dispatch:
@@ -15,25 +15,34 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ⚙️ Set up QEMU for ARM64 (Termux Architecture)
+      - name: 🔓 Setup Workspace & Permissions
+        run: |
+          mkdir -p ${{ github.workspace }}/output_wheels
+          chmod -R 777 ${{ github.workspace }}
+
+      - name: ⚙️ Set up QEMU for ARM64
         uses: docker/setup-qemu-action@v3
 
-      - name: 🚀 Build Wheel inside Termux Environment
+      - name: 🚀 Build Wheel (Super Fast Mode)
+        # --platform, --dns যোগ করা হয়েছে এবং apt-get ব্যবহার করা হয়েছে মিরর টেস্ট স্কিপ করতে
         run: |
-          # ghcr.io সরিয়ে সরাসরি Docker Hub থেকে পাবলিক ইমেজ নেওয়া হচ্ছে
           docker run --rm \
+            --platform linux/arm64 \
+            --dns 8.8.8.8 \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             termux/termux-docker:aarch64 \
-            bash -c "pkg update -y && \
-                     pkg install -y python rust binutils clang make && \
+            bash -c "apt-get update -y && \
+                     apt-get install -y python rust binutils clang make && \
                      export ANDROID_API_LEVEL=24 && \
                      export CARGO_BUILD_TARGET=aarch64-linux-android && \
-                     pip wheel ${{ github.event.inputs.package_name }} --no-cache-dir"
+                     export CARGO_BUILD_JOBS=4 && \
+                     pip wheel ${{ github.event.inputs.package_name }} -w /workspace/output_wheels && \
+                     chmod -R 777 /workspace/output_wheels"
 
       - name: 📦 Upload Wheel as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: termux-built-wheel
-          path: ./*.whl
+          path: output_wheels/*.whl
           retention-days: 5
