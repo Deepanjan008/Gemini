@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       grpcio_version:
-        description: 'grpcio version to build (recommended: 1.62.2 or 1.66.1)'
+        description: 'grpcio version (try 1.62.2 first)'
         required: true
         default: '1.62.2'
 
 jobs:
   build-grpcio-termux:
     runs-on: ubuntu-latest
-    timeout-minutes: 120   # 2 ঘণ্টা পর্যন্ত সময় দিলাম
+    timeout-minutes: 150
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,22 +38,23 @@ jobs:
               echo "=== 1. Updating Termux ==="
               pkg update -y && pkg upgrade -y
 
-              echo "=== 2. Installing build tools ==="
+              echo "=== 2. Installing build dependencies ==="
               pkg install -y python rust binutils clang make lld llvm pkg-config libandroid-spawn cmake ninja
 
-              echo "=== 3. Upgrading pip tools ==="
-              python -m pip install --upgrade pip wheel setuptools
+              echo "=== 3. Installing/ Downgrading setuptools to compatible version ==="
+              python -m pip install --upgrade pip wheel
+              python -m pip install "setuptools<72" "setuptools-scm" packaging --force-reinstall
 
               echo "=== 4. Environment Setup ==="
               export ANDROID_API_LEVEL=24
               export CARGO_BUILD_TARGET=aarch64-linux-android
-              export CARGO_BUILD_JOBS=6
+              export CARGO_BUILD_JOBS=4
               export CC=clang
               export CXX=clang++
               export PATH="$HOME/.cargo/bin:$PATH"
 
               echo "=== 5. Building grpcio==${{ github.event.inputs.grpcio_version }} ==="
-              echo "This may take 30-90 minutes..."
+              echo "This can take 40-120 minutes..."
 
               pip wheel grpcio==${{ github.event.inputs.grpcio_version }} \
                 -w /workspace/output_wheels \
@@ -72,6 +73,4 @@ jobs:
 
       - name: Show Result
         if: always()
-        run: |
-          echo "=== Built wheels ==="
-          ls -lh output_wheels/ || echo "No wheel was built :("
+        run: ls -lh output_wheels/ || echo "No wheel built"
