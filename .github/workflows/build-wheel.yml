@@ -1,4 +1,4 @@
-name: Build Termux Wheels (Final Fix)
+name: Build Termux Wheels (Ultimate Pro Max)
 
 on:
   workflow_dispatch:
@@ -30,10 +30,12 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             termux/termux-docker:aarch64 \
-            bash -c "pkg update -y && \
-                     pkg install -y python rust binutils clang make && \
+            bash -c "pkg update -y && pkg upgrade -y && \
+                     pkg install -y python rust binutils-is-llvm clang make lld pkg-config libandroid-spawn && \
+                     python -m pip install --upgrade pip && \
                      export ANDROID_API_LEVEL=24 && \
                      export CARGO_BUILD_TARGET=aarch64-linux-android && \
+                     export CARGO_BUILD_JOBS=4 && \
                      pip wheel ${{ github.event.inputs.package_name }} -w /workspace/output_wheels" || true
 
       - name: Upload Artifact
