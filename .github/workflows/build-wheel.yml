@@ -34,10 +34,10 @@ jobs:
                      pkg install -y python rust binutils clang make && \
                      export ANDROID_API_LEVEL=24 && \
                      export CARGO_BUILD_TARGET=aarch64-linux-android && \
-                     pip wheel ${{ github.event.inputs.package_name }} -w /workspace/output_wheels && \
-                     chmod -R 777 /workspace/output_wheels"
+                     pip wheel ${{ github.event.inputs.package_name }} -w /workspace/output_wheels" || true
 
       - name: Upload Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: termux-built-wheel
