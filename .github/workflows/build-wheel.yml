@@ -1,12 +1,12 @@
-name: Build Termux Wheels (Ultimate Pro Max)
+name: Build Termux Wheels (Real Debug)
 
 on:
   workflow_dispatch:
     inputs:
       package_name:
-        description: 'Package Name (e.g., pydantic-core==2.41.5)'
+        description: 'Package Name (e.g., pydantic-core==2.27.1 or pydantic-core)'
         required: true
-        default: 'pydantic-core==2.41.5'
+        default: 'pydantic-core==2.27.1'
 
 jobs:
   build-for-termux:
@@ -22,26 +22,55 @@ jobs:
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
-      - name: Build Wheel
+      - name: Build Wheel inside Termux (Debug Mode)
         run: |
           docker run --rm \
             --platform linux/arm64 \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             termux/termux-docker:aarch64 \
-            bash -c "pkg update -y && pkg upgrade -y && \
-                     pkg install -y python rust binutils-is-llvm clang make lld pkg-config libandroid-spawn && \
-                     python -m pip install --upgrade pip && \
-                     export ANDROID_API_LEVEL=24 && \
-                     export CARGO_BUILD_TARGET=aarch64-linux-android && \
-                     export CARGO_BUILD_JOBS=4 && \
-                     pip wheel ${{ github.event.inputs.package_name }} -w /workspace/output_wheels" || true
+            bash -c '
+              set -e
+              echo "=== 1. Updating Termux packages ==="
+              pkg update -y && pkg upgrade -y
+
+              echo "=== 2. Installing build dependencies ==="
+              pkg install -y python rust binutils clang make lld llvm pkg-config libandroid-spawn
+
+              echo "=== 3. Upgrading pip & tools ==="
+              python -m pip install --upgrade pip wheel setuptools
+
+              echo "=== 4. Setting environment variables ==="
+              export ANDROID_API_LEVEL=24
+              export CARGO_BUILD_TARGET=aarch64-linux-android
+              export CARGO_BUILD_JOBS=4
+              export CC=clang
+              export CXX=clang++
+              export PATH="$HOME/.cargo/bin:$PATH"
+
+              echo "=== 5. Starting wheel build for ${{ github.event.inputs.package_name }} ==="
+              echo "Target: $CARGO_BUILD_TARGET | API Level: $ANDROID_API_LEVEL"
+
+              pip wheel ${{ github.event.inputs.package_name }} \
+                -w /workspace/output_wheels \
+                --no-deps \
+                --no-cache-dir \
+                --verbose
+            '
 
       - name: Upload Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: termux-built-wheel
+          name: termux-wheel-${{ github.event.inputs.package_name }}
           path: output_wheels/*.whl
-          retention-days: 5
+          retention-days: 7
+
+      - name: List Built Wheels (Debug)
+        if: always()
+        run: |
+          echo "=== Built wheels ==="
+          ls -lh output_wheels/ || echo "No .whl files found!"
