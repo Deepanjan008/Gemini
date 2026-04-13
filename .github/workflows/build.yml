@@ -11,7 +11,7 @@ on:
 jobs:
   build-grpcio-termux:
     runs-on: ubuntu-latest
-    timeout-minutes: 180   # 3 ঘণ্টা পর্যন্ত সময় দিলাম
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,12 +38,15 @@ jobs:
               echo "=== 1. Updating Termux ==="
               pkg update -y && pkg upgrade -y
 
+              echo "=== 1.5 Fixing ncurses conflict (common mirror issue) ==="
+              apt-get update -y
+              apt-get install -y --allow-downgrades ncurses ncurses-ui-libs
+
               echo "=== 2. Installing build dependencies ==="
               pkg install -y python rust binutils clang make lld llvm pkg-config libandroid-spawn cmake ninja
 
               echo "=== 3. Installing compatible build tools ==="
               python -m pip install --upgrade pip wheel
-              # setuptools<70 + Cython<3 + setuptools-scm — pkg_resources এর জন্য জরুরি
               python -m pip install "setuptools<70" "Cython<3" "setuptools-scm" packaging --force-reinstall
 
               echo "=== 4. Environment Setup ==="
@@ -55,7 +58,7 @@ jobs:
               export PATH="$HOME/.cargo/bin:$PATH"
 
               echo "=== 5. Building grpcio==${{ github.event.inputs.grpcio_version }} ==="
-              echo "This may take 40-120+ minutes. Please be patient..."
+              echo "This may take 40-120+ minutes..."
 
               pip wheel grpcio==${{ github.event.inputs.grpcio_version }} \
                 -w /workspace/output_wheels \
