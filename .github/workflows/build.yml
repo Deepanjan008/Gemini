@@ -1,0 +1,77 @@
+name: Build grpcio Wheel for Termux (ARM64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      grpcio_version:
+        description: 'grpcio version to build (recommended: 1.62.2 or 1.66.1)'
+        required: true
+        default: '1.62.2'
+
+jobs:
+  build-grpcio-termux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120   # 2 ঘণ্টা পর্যন্ত সময় দিলাম
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Output Folder
+        run: |
+          mkdir -p ${{ github.workspace }}/output_wheels
+          chmod -R 777 ${{ github.workspace }}
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Build grpcio Wheel
+        run: |
+          docker run --rm \
+            --platform linux/arm64 \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            termux/termux-docker:aarch64 \
+            bash -c '
+              set -e
+              echo "=== 1. Updating Termux ==="
+              pkg update -y && pkg upgrade -y
+
+              echo "=== 2. Installing build tools ==="
+              pkg install -y python rust binutils clang make lld llvm pkg-config libandroid-spawn cmake ninja
+
+              echo "=== 3. Upgrading pip tools ==="
+              python -m pip install --upgrade pip wheel setuptools
+
+              echo "=== 4. Environment Setup ==="
+              export ANDROID_API_LEVEL=24
+              export CARGO_BUILD_TARGET=aarch64-linux-android
+              export CARGO_BUILD_JOBS=6
+              export CC=clang
+              export CXX=clang++
+              export PATH="$HOME/.cargo/bin:$PATH"
+
+              echo "=== 5. Building grpcio==${{ github.event.inputs.grpcio_version }} ==="
+              echo "This may take 30-90 minutes..."
+
+              pip wheel grpcio==${{ github.event.inputs.grpcio_version }} \
+                -w /workspace/output_wheels \
+                --no-deps \
+                --no-cache-dir \
+                --verbose
+            '
+
+      - name: Upload Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: termux-grpcio-${{ github.event.inputs.grpcio_version }}
+          path: output_wheels/*.whl
+          retention-days: 7
+
+      - name: Show Result
+        if: always()
+        run: |
+          echo "=== Built wheels ==="
+          ls -lh output_wheels/ || echo "No wheel was built :("
